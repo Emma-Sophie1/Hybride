@@ -1,0 +1,22 @@
+in de GUI moeten de volgende variabelen meegenomen worden:
+
+ReferenceCalculatorE.py:
+- min pitch
+- max pitch
+- start_motor : vanaf waar beweegt de E-Vari-A mee
+- stop_motor: tot waar beweegt de E-Vari-A mee
+- threshold meegeven aan wanneer de evaria écht gaat bewegen, hoeft alleen bij bewegingen groter dan xxx
+- manier bedenken om het bereik zo te implementeren dat dit ook invloed heeft op de gebieden van motor beweging
+
+
+
+
+voorbeeld met pitch op 50 graden:
+-4400 + (50 - 20)/(120-20) * 8800
+-4400 + 30/100 * 8800
+-4000 + 0.3 * 8800
+-4400 + 2640 = -1670
+
+
+
+

@@ -1,0 +1,21 @@
+{
+  "endmotor_angle": 130,
+  "gain_boost": 0,
+  "height_boost": 0,
+  "max_motor": 4400,
+  "middle_motor": 0,
+  "min_motor": -4400,
+  "qe_max": 180,
+  "qe_min": 0,
+  "qh_max": 90,
+  "qh_min": -90,
+  "qh_presets": [
+    0,
+    45,
+    60
+  ],
+  "start_boost": 20,
+  "start_support": 20,
+  "startmotor_angle": 20,
+  "upp_varia": 5
+}

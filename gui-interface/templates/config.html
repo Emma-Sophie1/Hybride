@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>Hybrid Ex-One Testing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Chart.js + annotation plugin (v4-compatible) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    body { margin: 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    h1 { margin-top: 0; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;  /* rechter kolom iets smaller */
+      gap: 24px;
+      align-items: start;
+    }
+    .card { padding: 16px; border: 1px solid #ddd; border-radius: 12px; }
+    form label { display: inline-block; min-width: 320px; }
+    form input[type="number"] { width: 140px; }
+    .row { margin-bottom: 12px; }
+    .hint { font-size: .9rem; color: #555; margin-top: 8px; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    /* compacte grafiek voor laptops */
+    #liveChart { width: 100%; height: 260px; }
+  </style>
+
+  <!-- Embed cfg as JSON (no JS here, so no linter errors) -->
+  <script id="cfg-data" type="application/json">{{ cfg|tojson }}</script>
+</head>
+<body>
+  <h1>Ondersteuningsprofielen Variabelen</h1>
+
+  <div class="layout">
+    <!-- Linker kolom: formulier -->
+    <div class="card">
+      <form method="post">
+        <div class="row">
+          <label for="qe_min">Minimal Elevation (°):</label>
+          <input type="number" step="0.1" id="qe_min" name="qe_min" value="{{ cfg.qe_min }}">
+          <button type="submit">Save</button>
+        </div>
+
+        <div class="row">
+          <label for="qe_max">Maximal Elevation (°):</label>
+          <input type="number" step="0.1" id="qe_max" name="qe_max" value="{{ cfg.qe_max }}">
+          <button type="submit">Save</button>
+        </div>
+
+        <div class="row">
+          <label for="qh">Horizontal Flexion / Yaw (°): (qh)</label>
+          <input type="number" step="0.1" id="qh" name="qh" value="{{ cfg.qh }}">
+          <button type="submit">Save</button>
+        </div>
+
+        <div class="row">
+          <label for="speed">Speed (°/s) voor simulatie Pitch:</label>
+          <input type="number" step="0.1" id="speed" name="speed" value="{{ cfg.speed }}">
+          <button type="submit">Save</button>
+        </div>
+
+        <h2>Ondersteuningsoptie 1 : Ophogen E-Vari-A</h2>
+        <div class="row">
+          <label for="upp_varia">Statische ophoging van de E-vari-A (°):</label>
+          <input type="number" step="0.1" id="upp_varia" name="upp_varia" value="{{ cfg.upp_varia }}">
+          <button type="submit">Save</button>
+        </div>
+
+        <div class="row">
+          <label for="start_upp_varia">Start van de ophoging van de E-vari-A (20–120°):</label>
+          <input type="number" step="0.1" id="start_upp_varia" name="start_upp_varia" value="{{ cfg.start_upp_varia }}">
+          <button type="submit">Save</button>
+        </div>
+
+        <h2>Ondersteuningsoptie 2 : Boost</h2>
+        <div class="row">
+          <label for="start_boost">Startpunt van de Boost (°):</label>
+          <input type="number" step="0.1" id="start_boost" name="start_boost" value="{{ cfg.start_boost }}">
+          <button type="submit">Save</button>
+        </div>
+
+        <div class="row">
+          <label for="delta_boost">Hoogte overshoot Boost (°):</label>
+          <input type="number" step="0.1" id="delta_boost" name="delta_boost" value="{{ cfg.delta_boost }}">
+          <button type="submit">Save</button>
+        </div>
+
+        <div class="row">
+          <label for="gain_boost">De kracht (snelheid) Boost (°/s):</label>
+          <input type="number" step="0.1" id="gain_boost" name="gain_boost" value="{{ cfg.gain_boost }}">
+          <button type="submit">Save</button>
+        </div>
+      </form>
+      <p class="hint">Na opslaan wordt de simulatieklok gereset zodat je meteen effect ziet.</p>
+    </div>
+
+    <!-- Rechter kolom: live scatter chart -->
+    <div class="card">
+      <h2 style="margin-top:0">Live Arm Positie</h2>
+      <canvas id="liveChart"></canvas>
+      <div class="actions">
+        <button id="btnStart" type="button">Start</button>
+        <button id="btnStop" type="button">Stop</button>
+        <button id="btnTare" type="button">Tare</button>
+        <span id="status" class="status">State: ?? </span>
+      </div>
+      <p class="hint"> Groene zone is ±10° rond yaw, van 0–180° pitch.</p>
+    </div>
+  </div>
+
+  <script>
+    // Parse cfg JSON from the non-JS script tag
+    const cfg = JSON.parse(document.getElementById('cfg-data').textContent);
+    const ctx = document.getElementById('liveChart').getContext('2d');
+
+    const chart = new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'Arm positie',
+          data: [{ x: cfg.qh, y: cfg.qe_min }],
+          pointRadius: 6,
+          showLine: false
+        }]
+      },
+      options: {
+        animation: false,
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          annotation: {
+            annotations: {
+              targetZone: {
+                type: 'box',
+                xMin: cfg.qh - 10,
+                xMax: cfg.qh + 10,
+                yMin: 0,
+                yMax: 180,
+                backgroundColor: 'rgba(0, 180, 0, 0.15)',
+                borderColor: 'rgba(0, 180, 0, 0.5)',
+                borderWidth: 1
+              }
+            }
+          }
+        },
+        scales: {
+          x: { title: { display: true, text: 'Yaw (°)' }, min: 0, max: 180 },
+          y: { title: { display: true, text: 'Pitch (°)' }, min: 0, max: 180 }
+        }
+      }
+    });
+
+    function setStatus(obj) {
+      const s = document.getElementById('status');
+      const parts = [];
+      if (obj.state) parts.push('State: ${obj.state}');
+      if (obj.tared_at) parts.push('Tared: ${obj.tared_at}');
+      if (obj.message) parts.push(obj.message)
+      s.textContent = parts.join('-');
+    }
+
+    async function postJSON(url) {
+      const res = await fetch(url, { method: 'POST' });
+      return await res.json();
+    }
+
+    document.getElementById('btnStart').addEventListener('click', async () => {
+      try { setStatus(await postJSON('/api/start')); } catch {}
+    });
+    document.getElementById('btnStop').addEventListener('click', async () => {
+      try { setStatus(await postJSON('/api/stop')); } catch {}
+    });
+    document.getElementById('btnTare').addEventListener('click', async () => {
+      try { setStatus(await postJSON('/api/tare?what=all')); } catch {}
+    });    
+
+    async function tick() {
+      try {
+        const res = await fetch('/api/point');
+        const p = await res.json();
+
+        // update stip
+        chart.data.datasets[0].data = [{ x: p.yaw, y: p.pitch }];
+
+        // update ±10° zone rond actuele qh
+        const zone = chart.options.plugins.annotation.annotations.targetZone;
+        zone.xMin = p.qh - 10;
+        zone.xMax = p.qh + 10;
+
+        chart.update();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 10x per seconde
+    setInterval(tick, 100);
+  </script>
+</body>
+</html>
