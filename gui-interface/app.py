@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
-import time, os, sys
+import time, os, sys, json
 
 # --- robuuste import van SensorDataProducer ---
 try:
@@ -16,7 +16,10 @@ except Exception:
 app = Flask(__name__)
 app.secret_key = "dev"
 
-# Config
+# config.json file settings
+CONFIG_FILE = os.pat.join(os.path.dirname(__file__), "config.json")
+
+# Config defaults, will be overriden by config.json if present
 config = {
     "qe_min": 0, "qe_max": 180,
     "qh": 0,     # target yaw (°)
@@ -27,6 +30,28 @@ config = {
     "delta_boost": 0,
     "gain_boost": 0
 }
+
+def load_config_from_file():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    config.update(data)
+                    print(f"[OK] Config loaded from {CONFIG_FILE}")
+        except Exception as e:
+            print(f"[WARN] Failed to load {CONFIG_FILE}: {e}")
+
+def save_config_to_file(cfg: dict):
+    # atomic write: write to temp then replace
+    tmp = CONFIG_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+    os.replace(tmp, CONFIG_FILE)
+    print(f"[OK] Config saved to {CONFIG_FILE}")
+
+# Load persisted settings (if any)
+load_config_from_file()
 
 I2C_BUS = 2  
 start_time = time.time()
@@ -68,11 +93,35 @@ def index():
             config["qe_min"], config["qe_max"] = config["qe_max"], config["qe_min"]
 
         start_time = time.time()  # reset simulatieklok
+        save_config_to_file(config) # persist immediately 
+
         return redirect(url_for("index"))
 
     return render_template("config.html", cfg=config)
 
 # ---------- NIEUWE ENDPOINTS ----------
+@app.post("/api/start")
+def api_safe():
+    data = request.get_json(silent=True) or {}
+    def to_float(val, default):
+        try:
+            return float(val)
+        except Exception:
+            return default
+        
+    # merge 
+    for key in ["qe_min","qe_max","qh","speed","upp_varia","start_upp_varia","start_boost","delta_boost","gain_boost"]:
+        if key in data:
+            config[key] = to_float(data[key], config[key])
+
+    # sanity
+    if config["qe_min"] > config["qe_max"]:
+        config["qe_min"], config["qe_max"] = config["qe_max"], config["qe_min"]
+
+    save_config_to_file(config)
+    return jsonify({"ok": True, "config": config})
+
+# --------------- Existing endpoints
 @app.post("/api/start")
 def api_start():
     s = get_sensor()
